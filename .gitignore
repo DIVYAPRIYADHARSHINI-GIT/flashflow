@@ -27,3 +27,5 @@ playwright-report/
 npm-debug.log*
 yarn-error.log*
 *.log
+.vercel
+.env*

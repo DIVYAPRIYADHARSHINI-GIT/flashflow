@@ -85,9 +85,15 @@ async function embedFonts(doc: PDFDocument): Promise<Fonts> {
 			readFontFile('inter-regular'),
 			readFontFile('inter-bold')
 		]);
+		// NOTE: `subset: true` must NOT be used here. With these Inter builds, fontkit's
+		// subsetter silently drops glyphs - the extracted text stays correct but the
+		// rendered page shows gaps where characters should be ("What does" rendered as
+		// "h  es"). Embedding the full font costs about 300 KB per PDF, which is fine for
+		// a printable card sheet and is the only way the output is actually readable.
+		// Verified by rendering both variants and comparing them visually.
 		return {
-			regular: await doc.embedFont(reg, { subset: true }),
-			bold: await doc.embedFont(bold, { subset: true })
+			regular: await doc.embedFont(reg),
+			bold: await doc.embedFont(bold)
 		};
 	} catch {
 		// Last-resort fallback so the route still returns a usable PDF.

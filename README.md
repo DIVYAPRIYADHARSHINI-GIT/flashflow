@@ -11,7 +11,7 @@ uploads, no tracking.
 
 ## Live demo
 
-- **Live app:** https://flashflow-ten-liard.vercel.app
+- **Live app:** https://flashflow-mu.vercel.app
 - **Source:** https://github.com/DIVYAPRIYADHARSHINI-GIT/flashflow
 
 The live app opens with three sample decks and a generated 60-day review history, so every
