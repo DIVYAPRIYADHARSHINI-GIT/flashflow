@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en" class="h-full">
+	<head>
+		<meta charset="utf-8" />
+		<link rel="icon" href="%sveltekit.assets%/favicon.svg" type="image/svg+xml" />
+		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		<meta
+			name="description"
+			content="FlashFlow - a free spaced repetition flashcard app. Study less. Remember more. Your data stays in your browser."
+		/>
+		<meta name="theme-color" content="#10213C" />
+		<script>
+			// Apply the saved theme before first paint so there is no flash of the wrong mode.
+			try {
+				const raw = localStorage.getItem('flashflow:data:v1');
+				const theme = raw ? JSON.parse(raw)?.settings?.theme : 'system';
+				const dark =
+					theme === 'dark' ||
+					((theme === 'system' || !theme) &&
+						window.matchMedia('(prefers-color-scheme: dark)').matches);
+				if (dark) document.documentElement.classList.add('dark');
+			} catch (e) {
+				// Storage blocked - fall back to the light interface.
+			}
+		</script>
+		%sveltekit.head%
+	</head>
+	<body data-sveltekit-preload-data="hover" class="h-full">
+		<div style="display: contents" class="h-full">%sveltekit.body%</div>
+	</body>
+</html>

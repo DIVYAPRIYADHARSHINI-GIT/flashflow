@@ -1,0 +1,29 @@
+# dependencies
+node_modules/
+
+# build output
+.svelte-kit/
+build/
+dist/
+.vercel/
+
+# test + probe artifacts
+coverage/
+test-results/
+playwright-report/
+
+# environment
+.env
+.env.*
+!.env.example
+
+# editor / OS
+.DS_Store
+.idea/
+.vscode/
+*.swp
+
+# logs
+npm-debug.log*
+yarn-error.log*
+*.log

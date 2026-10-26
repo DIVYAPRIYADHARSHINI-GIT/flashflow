@@ -1,0 +1,345 @@
+@import 'tailwindcss';
+
+/* FlashFlow design tokens.
+   Calm study-tool feel: soft off-white workspace, white cards, deep navy ink, clear blue
+   primary. Answer colours are never colour-only - every button also carries a text label
+   and its shortcut number. */
+
+@theme {
+	--color-paper: #f6f7fb;
+	--color-ink: #10213c;
+	--color-primary: #2f6fed;
+	--color-again: #e03131;
+	--color-hard: #f59f00;
+	--color-good: #2f9e44;
+	--color-easy: #1c7ed6;
+
+	--font-ui: 'FF Inter', ui-sans-serif, system-ui, sans-serif;
+	--font-card-serif: 'FF Source Serif', ui-serif, Georgia, serif;
+
+	--radius-card: 0.75rem;
+}
+
+/* ---- Self-hosted fonts. No external font service, so nothing is fetched from a third
+       party and the app works offline after the first load. ---- */
+@font-face {
+	font-family: 'FF Inter';
+	src: url('/fonts/inter-regular.ttf') format('truetype');
+	font-weight: 400;
+	font-style: normal;
+	font-display: swap;
+}
+@font-face {
+	font-family: 'FF Inter';
+	src: url('/fonts/inter-bold.ttf') format('truetype');
+	font-weight: 700;
+	font-style: normal;
+	font-display: swap;
+}
+@font-face {
+	font-family: 'FF Inter';
+	src: url('/fonts/inter-italic.ttf') format('truetype');
+	font-weight: 400;
+	font-style: italic;
+	font-display: swap;
+}
+@font-face {
+	font-family: 'FF Source Serif';
+	src: url('/fonts/source-serif-regular.ttf') format('truetype');
+	font-weight: 400;
+	font-style: normal;
+	font-display: swap;
+}
+@font-face {
+	font-family: 'FF Source Serif';
+	src: url('/fonts/source-serif-bold.ttf') format('truetype');
+	font-weight: 700;
+	font-style: normal;
+	font-display: swap;
+}
+/* Indic scripts for card text (Tamil / Devanagari sample content and imports). */
+@font-face {
+	font-family: 'FF Noto Tamil';
+	src: url('/fonts/noto-sans-tamil.ttf') format('truetype');
+	font-weight: 100 900;
+	font-style: normal;
+	font-display: swap;
+}
+@font-face {
+	font-family: 'FF Noto Devanagari';
+	src: url('/fonts/noto-sans-devanagari.ttf') format('truetype');
+	font-weight: 100 900;
+	font-style: normal;
+	font-display: swap;
+}
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* ---- Interface surfaces ---- */
+:root {
+	--surface: #f6f7fb;
+	--surface-raised: #ffffff;
+	--surface-sunken: #eef1f8;
+	--panel: #ffffff;
+	--border: #dfe4f0;
+	--border-strong: #c7cfe2;
+	--text: #10213c;
+	--text-muted: #5a6782;
+	--sidebar: #ffffff;
+	--chip: #eef3fe;
+}
+
+.dark {
+	--surface: #0b1424;
+	--surface-raised: #132038;
+	--surface-sunken: #0e1930;
+	--panel: #132038;
+	--border: #24355a;
+	--border-strong: #34497a;
+	--text: #e8edf8;
+	--text-muted: #9babc9;
+	--sidebar: #0e1930;
+	--chip: #1b2c4d;
+}
+
+html {
+	background: var(--surface);
+	color: var(--text);
+}
+
+body {
+	font-family: var(--font-ui);
+	background: var(--surface);
+	color: var(--text);
+	-webkit-font-smoothing: antialiased;
+}
+
+/* Visible focus everywhere - required for full keyboard studying. */
+:where(a, button, input, select, textarea, [tabindex]):focus-visible {
+	outline: 2px solid var(--color-primary);
+	outline-offset: 2px;
+	border-radius: 6px;
+}
+
+/* ---- Reusable component classes ---- */
+@layer components {
+	.ff-card {
+		background: var(--surface-raised);
+		border: 1px solid var(--border);
+		border-radius: var(--radius-card);
+	}
+
+	.ff-input {
+		width: 100%;
+		background: var(--surface-raised);
+		border: 1px solid var(--border-strong);
+		border-radius: 0.5rem;
+		padding: 0.5rem 0.65rem;
+		font-size: 0.925rem;
+		color: var(--text);
+		min-height: 2.5rem;
+	}
+	.ff-input:focus {
+		border-color: var(--color-primary);
+	}
+
+	.ff-label {
+		display: block;
+		font-size: 0.78rem;
+		font-weight: 600;
+		letter-spacing: 0.01em;
+		color: var(--text-muted);
+		margin-bottom: 0.3rem;
+	}
+
+	.ff-btn {
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		gap: 0.4rem;
+		min-height: 2.75rem; /* 44px tap target */
+		padding: 0 0.95rem;
+		border-radius: 0.55rem;
+		border: 1px solid var(--border-strong);
+		background: var(--surface-raised);
+		color: var(--text);
+		font-size: 0.9rem;
+		font-weight: 600;
+		cursor: pointer;
+	}
+	.ff-btn:hover {
+		background: var(--surface-sunken);
+	}
+	.ff-btn:disabled {
+		opacity: 0.5;
+		cursor: not-allowed;
+	}
+
+	.ff-btn-primary {
+		background: var(--color-primary);
+		border-color: var(--color-primary);
+		color: #fff;
+	}
+	.ff-btn-primary:hover {
+		background: #2560d8;
+	}
+
+	.ff-btn-danger {
+		background: var(--color-again);
+		border-color: var(--color-again);
+		color: #fff;
+	}
+	.ff-btn-danger:hover {
+		background: #c92a2a;
+	}
+
+	.ff-btn-sm {
+		min-height: 2.25rem;
+		padding: 0 0.65rem;
+		font-size: 0.82rem;
+	}
+
+	.ff-chip {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.3rem;
+		padding: 0.12rem 0.5rem;
+		border-radius: 999px;
+		background: var(--chip);
+		color: var(--text-muted);
+		font-size: 0.72rem;
+		font-weight: 600;
+		white-space: nowrap;
+	}
+
+	.ff-muted {
+		color: var(--text-muted);
+	}
+
+	.ff-h1 {
+		font-size: 1.45rem;
+		font-weight: 700;
+		letter-spacing: -0.01em;
+	}
+
+	.ff-h2 {
+		font-size: 1.05rem;
+		font-weight: 700;
+		letter-spacing: -0.005em;
+	}
+
+	/* Card text formatting produced by logic/format.ts */
+	.ff-content :where(p) {
+		margin: 0 0 0.6em;
+	}
+	.ff-content :where(p:last-child) {
+		margin-bottom: 0;
+	}
+	.ff-content :where(.ff-ul) {
+		margin: 0 0 0.6em;
+		padding-left: 1.3em;
+		list-style: disc;
+		text-align: left;
+	}
+	.ff-content :where(.ff-code) {
+		font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+		font-size: 0.9em;
+		background: var(--surface-sunken);
+		border: 1px solid var(--border);
+		border-radius: 4px;
+		padding: 0.05em 0.3em;
+	}
+	.ff-content :where(.ff-pre) {
+		font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+		font-size: 0.85em;
+		text-align: left;
+		background: var(--surface-sunken);
+		border: 1px solid var(--border);
+		border-radius: 8px;
+		padding: 0.7em 0.9em;
+		margin: 0 0 0.6em;
+		overflow-x: auto;
+		white-space: pre;
+	}
+
+	/* Skeleton loader */
+	.ff-skeleton {
+		background: linear-gradient(90deg, var(--surface-sunken) 25%, var(--border) 37%, var(--surface-sunken) 63%);
+		background-size: 400% 100%;
+		animation: ff-shimmer 1.4s ease infinite;
+		border-radius: 6px;
+	}
+}
+
+@keyframes ff-shimmer {
+	0% {
+		background-position: 100% 50%;
+	}
+	100% {
+		background-position: 0 50%;
+	}
+}
+
+/* Card flip - light only, and disabled entirely with reduced motion. */
+.ff-flip {
+	animation: ff-flip-in 170ms ease-out;
+}
+@keyframes ff-flip-in {
+	from {
+		opacity: 0;
+		transform: translateY(5px);
+	}
+	to {
+		opacity: 1;
+		transform: none;
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	*,
+	*::before,
+	*::after {
+		animation-duration: 0.001ms !important;
+		animation-iteration-count: 1 !important;
+		transition-duration: 0.001ms !important;
+	}
+	.ff-flip {
+		animation: none;
+	}
+	.ff-skeleton {
+		animation: none;
+	}
+}
+
+/* Screen-reader only text */
+.sr-only {
+	position: absolute;
+	width: 1px;
+	height: 1px;
+	padding: 0;
+	margin: -1px;
+	overflow: hidden;
+	clip: rect(0, 0, 0, 0);
+	white-space: nowrap;
+	border: 0;
+}
+
+/* Print stylesheet: used by the browser print-to-PDF route for Tamil / Hindi decks,
+   where the generated PDF cannot shape complex scripts correctly. */
+@media print {
+	.no-print {
+		display: none !important;
+	}
+	html,
+	body {
+		background: #fff !important;
+		color: #000 !important;
+	}
+	.ff-print-sheet {
+		break-inside: avoid;
+	}
+	@page {
+		size: A4;
+		margin: 14mm;
+	}
+}
