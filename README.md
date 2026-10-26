@@ -221,10 +221,15 @@ use the **Print to PDF** route instead (`/print`), which renders the cards with 
 stylesheet and lets the browser's own text shaper lay the glyphs out correctly — choose "Save
 as PDF" in the print dialog. Latin-script decks use the generated PDF normally.
 
-Self-hosted fonts shipped with the app: Inter and Source Serif (SIL Open Font License) for
-the interface and Latin card text, and Noto Sans Tamil and Noto Sans Devanagari (SIL Open
-Font License) so Tamil and Hindi card text renders correctly on screen and in the print
-route.
+Self-hosted fonts shipped with the app (all SIL Open Font License): Inter and Source Serif
+for the interface and Latin card text, and Noto Sans Tamil and Noto Sans Devanagari so Tamil
+and Hindi card text renders correctly on screen and in the print route.
+
+The generated PDFs embed **Source Serif**, not Inter. The shipped Inter TTF build has broken
+`cmap` entries for `:` and `)` — they extract as `ր` and `Յ` and render as blank gaps.
+Source Serif renders the full ASCII punctuation set correctly, and a serif face suits
+printed flashcards better anyway. The fonts are embedded in full rather than subsetted,
+because fontkit's subsetter silently drops glyphs from these builds.
 
 ## Design
 
@@ -250,7 +255,7 @@ studying, visible focus states, aria labels and screen-reader-friendly card flip
 | Storage | `localStorage` only, behind the `StudyStore` interface |
 | PDF | `pdf-lib` + `@pdf-lib/fontkit` (MIT), in the single `/api/pdf` server route |
 | Charts | Hand-written SVG — no chart library |
-| Tests | Vitest unit tests + Playwright browser probes |
+| Tests | Vitest unit tests + Playwright browser probes + pdf.js for PDF render checks |
 
 Every dependency is free, well maintained, pinned to an exact version, and at least two
 weeks old. The app is client-rendered (`ssr = false` in `+layout.ts`) because all data lives
@@ -296,7 +301,7 @@ column mapping and row errors, safe formatting, every statistic, JSON backup val
 against malformed/foreign/truncated/empty files, the store and its migrations, the session
 timer, the sample data, and performance guards over 10,000 cards.
 
-**30 browser probe checks** (Playwright, short timeouts) run the real app:
+**35 browser probe checks** (Playwright, short timeouts) run the real app:
 
 - `probes/e2e.probe.ts` (21) — sample data on first open, adding each of the four card
   types and checking the card counts, duplicate detection, importing a messy CSV with a BOM,
@@ -315,11 +320,29 @@ timer, the sample data, and performance guards over 10,000 cards.
 - `probes/clean-live.probe.ts` (2) — a brand-new visitor sees exactly the three sample decks
   with default settings and none of the test artefacts, and `/api/pdf` is the only API route
   (others 404).
+- `probes/pdf-render.probe.ts` (5) — **rasterises** the generated PDFs with pdf.js and
+  measures the ink, because a PDF can carry a perfect text layer while rendering with
+  missing glyphs. Checks the embedded font size, that a populated card sheet carries clearly
+  more ink than an empty one, and that the extracted characters match the input exactly.
 
-Three real bugs were found and fixed by these tests: graduation intervals were being fuzzed
-so a button could promise "4d" and store 3 days; a card at the maximum interval was fuzzed
-back below the cap; and the storage meter re-serialised the whole payload on every reactive
-read, which made the 10,000-card page take 97 seconds — it is now 7 seconds.
+### Bugs these tests found and fixed
+
+1. **Graduation intervals were fuzzed**, so a button could promise "Easy 4d" and store 3
+   days. Graduation is now exact.
+2. **A card already at the maximum interval was fuzzed back below the cap.** Fuzz is now
+   applied inside the cap.
+3. **The storage meter re-serialised the whole payload on every reactive read.** The layout
+   reads it to decide whether to show the "storage getting full" banner, so with 10,000
+   cards that was a multi-megabyte `JSON.stringify` per update — the 10,000-card page took
+   97 seconds. It is now a cached number updated on save, and the page takes 7 seconds.
+4. **The queue builder did a linear `notes.find` per card**, making it O(cards x notes). It
+   now uses an index.
+5. **The daily review ceiling ignored new cards**, so the queue could exceed the configured
+   maximum. New cards now fill only the room left after due reviews.
+6. **PDF font subsetting silently dropped glyphs** — "What does" rendered as "h  es" while
+   the text layer still read correctly. Caught only by the pixel-level probe.
+7. **Probing the font character-by-character corrupted the encoding**, turning `:` into `ր`
+   and `)` into `Յ`. Caught by the text-fidelity probe.
 
 ## Setup
 
