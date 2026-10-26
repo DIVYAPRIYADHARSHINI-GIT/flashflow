@@ -81,9 +81,13 @@ interface Fonts {
 async function embedFonts(doc: PDFDocument): Promise<Fonts> {
 	doc.registerFontkit(fontkit);
 	try {
+		// Source Serif, not Inter. The shipped Inter TTF build has broken cmap entries for
+		// ':' and ')': they extract as 'ր' and 'Յ' and render as blank gaps. Source Serif
+		// renders the full ASCII punctuation set correctly (verified by rendering both and
+		// comparing), and a serif face suits printed flashcards better anyway.
 		const [reg, bold] = await Promise.all([
-			readFontFile('inter-regular'),
-			readFontFile('inter-bold')
+			readFontFile('source-serif-regular'),
+			readFontFile('source-serif-bold')
 		]);
 		// NOTE: `subset: true` must NOT be used here. With these Inter builds, fontkit's
 		// subsetter silently drops glyphs - the extracted text stays correct but the
@@ -115,18 +119,23 @@ function flatten(text: string): string {
 		.trim();
 }
 
-/** Drop characters the embedded Latin font cannot encode, so pdf-lib never throws. */
+/**
+ * Make text safe to draw with the embedded Latin font.
+ *
+ * IMPORTANT: do not probe this character-by-character with `widthOfTextAtSize`. Doing so
+ * corrupted the output - ':' rendered as 'ր' and ')' as 'Յ' - because measuring single
+ * characters pollutes pdf-lib's glyph/encoding cache for the subsequent full-string draw.
+ * Instead, try the whole string once and only fall back to stripping when it genuinely
+ * cannot be encoded.
+ */
 function encodable(text: string, font: PDFFont): string {
-	let out = '';
-	for (const ch of text) {
-		try {
-			font.widthOfTextAtSize(ch, 10);
-			out += ch;
-		} catch {
-			out += '?';
-		}
+	try {
+		font.encodeText(text);
+		return text;
+	} catch {
+		// Keep ASCII and Latin-1, replace anything the font cannot represent.
+		return [...text].map((ch) => (ch.codePointAt(0)! < 0x0250 ? ch : '?')).join('');
 	}
-	return out;
 }
 
 function wrap(text: string, font: PDFFont, size: number, maxWidth: number, maxLines: number): string[] {

@@ -34,30 +34,21 @@ const SAMPLE_NOTES = [
 ];
 
 /**
- * Rasterise page 1 of a PDF with pdf.js inside a real browser and return the ratio of
- * near-black pixels. Dropped glyphs show up directly as missing ink, which is the only
- * way to catch the subsetting bug that text extraction happily hides.
+ * Load pdf.js (from local node_modules, so no network access is needed) into a page.
  *
- * pdf.js is loaded from the local node_modules build, so this needs no network access.
+ * It is injected with addScriptTag rather than a dynamic import inside evaluate(),
+ * because Vite rewrites `import()` in probe source into its SSR helper, which does not
+ * exist in the browser.
  */
-async function inkRatio(bytes: Uint8Array): Promise<number> {
-	const context = await browser.newContext({ viewport: { width: 1000, height: 1200 } });
-	const page = await context.newPage();
-	page.setDefaultTimeout(30_000);
-	await page.goto('about:blank');
-
-	const pdfJsPath = fileURLToPath(
-		new URL('../node_modules/pdfjs-dist/build/pdf.min.mjs', import.meta.url)
+async function loadPdfJs(page: import('playwright').Page): Promise<void> {
+	const pdfJs = readFileSync(
+		fileURLToPath(new URL('../node_modules/pdfjs-dist/build/pdf.min.mjs', import.meta.url)),
+		'utf8'
 	);
-	const workerPath = fileURLToPath(
-		new URL('../node_modules/pdfjs-dist/build/pdf.worker.min.mjs', import.meta.url)
+	const workerSrc = readFileSync(
+		fileURLToPath(new URL('../node_modules/pdfjs-dist/build/pdf.worker.min.mjs', import.meta.url)),
+		'utf8'
 	);
-	const pdfJs = readFileSync(pdfJsPath, 'utf8');
-	const workerSrc = readFileSync(workerPath, 'utf8');
-
-	// Load pdf.js as a real module script. This is done with addScriptTag rather than a
-	// dynamic import inside evaluate(), because Vite rewrites `import()` in probe source
-	// into its SSR helper, which does not exist in the browser.
 	await page.addScriptTag({
 		content: `
 			const libUrl = URL.createObjectURL(new Blob([${JSON.stringify(pdfJs)}], { type: 'text/javascript' }));
@@ -72,6 +63,19 @@ async function inkRatio(bytes: Uint8Array): Promise<number> {
 	await page.waitForFunction(() => Boolean((window as unknown as { __pdfjs?: unknown }).__pdfjs), {
 		timeout: 30_000
 	});
+}
+
+/**
+ * Rasterise page 1 of a PDF with pdf.js inside a real browser and return the ratio of
+ * near-black pixels. Dropped glyphs show up directly as missing ink, which is the only
+ * way to catch the subsetting bug that text extraction happily hides.
+ */
+async function inkRatio(bytes: Uint8Array): Promise<number> {
+	const context = await browser.newContext({ viewport: { width: 1000, height: 1200 } });
+	const page = await context.newPage();
+	page.setDefaultTimeout(30_000);
+	await page.goto('about:blank');
+	await loadPdfJs(page);
 
 	const ratio = await page.evaluate(
 		async ({ data }: { data: number[] }) => {
@@ -104,6 +108,36 @@ async function inkRatio(bytes: Uint8Array): Promise<number> {
 	return ratio;
 }
 
+/** Extract the text layer of every page with pdf.js, for fidelity checks. */
+async function extractText(bytes: Uint8Array): Promise<string> {
+	const context = await browser.newContext();
+	const page = await context.newPage();
+	page.setDefaultTimeout(30_000);
+	await page.goto('about:blank');
+	await loadPdfJs(page);
+	const text = await page.evaluate(
+		async ({ data }: { data: number[] }) => {
+			const pdfjs = (window as unknown as { __pdfjs: typeof import('pdfjs-dist') }).__pdfjs;
+			const doc = await pdfjs.getDocument({ data: new Uint8Array(data) }).promise;
+			const out: string[] = [];
+			for (let i = 1; i <= doc.numPages; i++) {
+				const content = await (await doc.getPage(i)).getTextContent();
+				out.push(
+					content.items
+						.map((item) => ('str' in item ? item.str : ''))
+						.join(' ')
+						.replace(/\s+/g, ' ')
+				);
+			}
+			return out.join('\n');
+		},
+		{ data: Array.from(bytes) }
+	);
+	await page.close();
+	await context.close();
+	return text;
+}
+
 beforeAll(async () => {
 	browser = await chromium.launch();
 }, 90_000);
@@ -117,9 +151,9 @@ describe('generated PDFs render with real glyphs, not just correct text', () => 
 		const bytes = await buildCardSheetPdf(SAMPLE_NOTES, 'Basic Python', '26 Oct 2026');
 		const buf = Buffer.from(bytes);
 		expect(buf.subarray(0, 5).toString()).toBe('%PDF-');
-		// A full Inter regular + bold embed is a few hundred KB. The dropped-glyph subset
+		// A full Source Serif regular + bold embed is ~220 KB. The dropped-glyph subset
 		// build was only ~10 KB, so size is a dependable regression signal.
-		expect(buf.length).toBeGreaterThan(250_000);
+		expect(buf.length).toBeGreaterThan(150_000);
 	}, 60_000);
 
 	it('renders the card sheet with enough ink for the text to be readable', async () => {
@@ -138,6 +172,35 @@ describe('generated PDFs render with real glyphs, not just correct text', () => 
 		// which proves the card text actually drew.
 		expect(fullInk).toBeGreaterThan(emptyInk * 1.5);
 	}, 180_000);
+
+	it('writes the exact characters it was given, with no substitutions', async () => {
+		// Regression guard: probing the font character-by-character with
+		// widthOfTextAtSize corrupted the encoding cache, so ':' came out as 'ր' and ')'
+		// as 'Յ'. Extract the text layer and compare it to the input.
+		const tricky = [
+			{
+				front: 'What does range(3) produce? Times: 08:44 (exactly)',
+				back: 'Values 0, 1, 2 - and nothing else; 100% sure!',
+				extra: 'Punctuation: ()[]{}<>?!@#$%^&*-_=+/\\|~"\'`',
+				deck: 'Punctuation Test'
+			}
+		];
+		const bytes = await buildCardSheetPdf(tricky, 'Punctuation Test', '26 Oct 2026, 08:44');
+		const text = await extractText(bytes);
+
+		for (const needle of [
+			'What does range(3) produce?',
+			'Times: 08:44 (exactly)',
+			'Punctuation Test - fronts',
+			'26 Oct 2026, 08:44'
+		]) {
+			expect(text, `missing or corrupted: ${needle}`).toContain(needle);
+		}
+		// None of the known corruption artefacts may appear.
+		for (const bad of ['ր', 'Յ', '08ր44', 'range(3Յ']) {
+			expect(text).not.toContain(bad);
+		}
+	}, 90_000);
 
 	it('renders the deck list with its rows visible', async () => {
 		const bytes = await buildDeckListPdf(
@@ -169,7 +232,7 @@ describe('generated PDFs render with real glyphs, not just correct text', () => 
 			],
 			'26 Oct 2026'
 		);
-		expect(Buffer.from(bytes).length).toBeGreaterThan(250_000);
+		expect(Buffer.from(bytes).length).toBeGreaterThan(150_000);
 		const ratio = await inkRatio(bytes);
 		expect(ratio).toBeGreaterThan(0.001);
 	}, 120_000);
